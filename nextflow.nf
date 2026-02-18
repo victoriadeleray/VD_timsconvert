@@ -13,7 +13,7 @@ params.compression = 'zlib' // zlib or none
 
 // timsconvert params
 params.ms2_only = 'False'  // only convert ms2 spectra?
-params.exclude_mobility = 'True'  // exclude mobility arrays from MS1 spectra?
+params.exclude_mobility = 'False'  // exclude mobility arrays from MS1 spectra?
 params.encoding = 64  // 64 or 32 bit encoding
 params.barebones_metadata = 'False'  // only use barebones metadata if downstream tools are not compatible with timstof cv params
 params.maldi_output_file = 'combined' // choose whether MALDI spectra are output to individual files, a single combined file with multiple spectra, or grouped by sample via maldi_plate_map
@@ -35,9 +35,9 @@ params.publishdir = "nf_output"
 // Process
 process convert {
     publishDir "$params.publishdir", mode: 'copy'
-
+    stageInMode 'copy'
     input:
-    file input_file
+    path input_file
 
     output:
     file "spectra/*"
@@ -51,15 +51,15 @@ process convert {
     if (params.location == 'local') {
         if (params.maldi_plate_map == '') {
             """
-            mkdir spectra
-            python3 $TOOL_FOLDER/run.py \
+            mkdir -p spectra
+            python3 ${projectDir}/TIMSCONVERT_CMD.py \
             --input $input_file \
             --outdir spectra \
             --mode ${params.mode} \
             --compression ${params.compression} \
             ${ms2_flag} \
             ${exclude_mobility_flag} \
-            --encoding ${params.encoding} \
+            --mz_encoding ${params.encoding} \
             ${barebones_metadata_flag} \
             --maldi_output_file ${params.maldi_output_file} \
             --imzml_mode ${params.imzml_mode} \
@@ -67,18 +67,18 @@ process convert {
             """
         } else if (params.maldi_plate_map != '') {
             """
-            mkdir spectra
-            python3 $TOOL_FOLDER/run.py \
+            mkdir -p spectra
+            python3 ${projectDir}/TIMSCONVERT_CMD.py \
             --input $input_file \
             --outdir spectra \
             --mode ${params.mode} \
             --compression ${params.compression} \
             ${ms2_flag} \
             ${exclude_mobility_flag} \
-            --encoding ${params.encoding} \
+            --mz_encoding ${params.encoding} \
             ${barebones_metadata_flag} \
             --maldi_output_file ${params.maldi_output_file} \
-            --maldi_plate_map = ${params.maldi_plate_map} \
+            --maldi_plate_map ${params.maldi_plate_map} \
             --imzml_mode ${params.imzml_mode} \
             ${verbose_flag}
             """
@@ -112,7 +112,8 @@ process summarize {
 
 
 workflow {
-    input_ch = Channel.fromPath(params.input, type:'dir', checkIfExists: true)
+    //input_ch = Channel.fromPath(params.input, type:'dir', checkIfExists: true)
+    input_ch = Channel.fromPath("${params.input}/*.d", type:'dir', checkIfExists: true)
     converted_data_ch = convert(input_ch)
     summarize(converted_data_ch.collect())
 }
